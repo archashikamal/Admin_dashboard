@@ -8,7 +8,6 @@ const SiyaUsers = () => {
 
     const columns = [
         { key: 'name', label: 'Name', required: true },
-        { key: 'telegram_chat_id', label: 'Telegram Chat ID', type: 'number' },
         { key: 'phone_number', label: 'Phone Number', type: 'tel' }
     ]
 
