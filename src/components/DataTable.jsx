@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
-import { Pencil, Trash2, Check, X, Plus, Loader2, AlertTriangle, Save } from 'lucide-react'
+import { Pencil, Trash2, Check, X, Plus, Loader2, AlertTriangle, Save, ChevronRight, ChevronDown } from 'lucide-react'
 
 // Simple Toast Component
 const Toast = ({ message, type, onClose }) => {
@@ -43,7 +43,7 @@ const ConfirmModal = ({ isOpen, title, message, onConfirm, onCancel }) => {
     )
 }
 
-const DataTable = ({ tableName, columns, primaryKey = 'id', title }) => {
+const DataTable = ({ tableName, columns, primaryKey = 'id', title, expandedRowRender, onAfterUpdate }) => {
     const [data, setData] = useState([])
     const [loading, setLoading] = useState(true)
     const [editingId, setEditingId] = useState(null)
@@ -51,6 +51,7 @@ const DataTable = ({ tableName, columns, primaryKey = 'id', title }) => {
     const [toast, setToast] = useState(null)
     const [showAddForm, setShowAddForm] = useState(false)
     const [newRecord, setNewRecord] = useState({})
+    const [expandedRowId, setExpandedRowId] = useState(null)
 
     // Confirmation State
     const [deleteId, setDeleteId] = useState(null)
@@ -85,6 +86,8 @@ const DataTable = ({ tableName, columns, primaryKey = 'id', title }) => {
     }
 
     const handleSave = async () => {
+        const oldValues = data.find(item => item[primaryKey] === editingId)
+
         const { error } = await supabase
             .from(tableName)
             .update(editValues)
@@ -95,6 +98,7 @@ const DataTable = ({ tableName, columns, primaryKey = 'id', title }) => {
         } else {
             setToast({ message: 'Updated successfully', type: 'success' })
             setEditingId(null)
+            if (onAfterUpdate) onAfterUpdate(oldValues, editValues)
             fetchData()
         }
     }
@@ -134,6 +138,10 @@ const DataTable = ({ tableName, columns, primaryKey = 'id', title }) => {
             setNewRecord({})
             fetchData()
         }
+    }
+
+    const toggleExpand = (id) => {
+        setExpandedRowId(prev => prev === id ? null : id)
     }
 
     const renderCell = (item, col) => {
@@ -178,6 +186,9 @@ const DataTable = ({ tableName, columns, primaryKey = 'id', title }) => {
             <p className="text-muted-foreground animate-pulse">Loading data...</p>
         </div>
     )
+
+    const hasExpand = !!expandedRowRender
+    const totalCols = columns.length + 1 + (hasExpand ? 1 : 0)
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
@@ -252,6 +263,7 @@ const DataTable = ({ tableName, columns, primaryKey = 'id', title }) => {
                     <table className="w-full text-left text-sm">
                         <thead className="bg-white/5 text-muted-foreground backdrop-blur-xl border-b border-white/5">
                             <tr>
+                                {hasExpand && <th className="p-4 w-10"></th>}
                                 {columns.map(col => (
                                     <th key={col.key} className="p-4 font-semibold tracking-wide">{col.label}</th>
                                 ))}
@@ -261,32 +273,58 @@ const DataTable = ({ tableName, columns, primaryKey = 'id', title }) => {
                         <tbody className="divide-y divide-white/5">
                             {data.map(item => {
                                 const isEditing = editingId === item[primaryKey]
+                                const isExpanded = expandedRowId === item[primaryKey]
                                 return (
-                                    <tr key={item[primaryKey]} className="table-row-hover group">
-                                        {columns.map(col => (
-                                            <td key={col.key} className="p-4 max-w-[200px] truncate text-foreground/90 group-hover:text-foreground">
-                                                {isEditing ? renderEditInput(col) : renderCell(item, col)}
-                                            </td>
-                                        ))}
-                                        <td className="p-4 text-right">
-                                            {isEditing ? (
-                                                <div className="flex justify-end gap-2">
-                                                    <button onClick={handleSave} className="bg-green-500/10 text-green-500 hover:bg-green-500/20 p-2 rounded-lg transition-colors" title="Save"><Check className="w-4 h-4" /></button>
-                                                    <button onClick={handleCancelEdit} className="bg-white/5 text-muted-foreground hover:bg-white/10 p-2 rounded-lg transition-colors" title="Cancel"><X className="w-4 h-4" /></button>
-                                                </div>
-                                            ) : (
-                                                <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                                                    <button onClick={() => handleEdit(item)} className="bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 p-2 rounded-lg transition-colors" title="Edit"><Pencil className="w-4 h-4" /></button>
-                                                    <button onClick={() => confirmDelete(item[primaryKey])} className="bg-red-500/10 text-red-400 hover:bg-red-500/20 p-2 rounded-lg transition-colors" title="Delete"><Trash2 className="w-4 h-4" /></button>
-                                                </div>
+                                    <React.Fragment key={item[primaryKey]}>
+                                        <tr className="table-row-hover group">
+                                            {hasExpand && (
+                                                <td className="p-4 w-10">
+                                                    <button
+                                                        onClick={() => toggleExpand(item[primaryKey])}
+                                                        className="text-muted-foreground hover:text-primary transition-colors p-1 rounded"
+                                                        title="View stock history"
+                                                    >
+                                                        {isExpanded
+                                                            ? <ChevronDown className="w-4 h-4" />
+                                                            : <ChevronRight className="w-4 h-4" />
+                                                        }
+                                                    </button>
+                                                </td>
                                             )}
-                                        </td>
-                                    </tr>
+                                            {columns.map(col => (
+                                                <td key={col.key} className="p-4 max-w-[200px] truncate text-foreground/90 group-hover:text-foreground">
+                                                    {isEditing ? renderEditInput(col) : renderCell(item, col)}
+                                                </td>
+                                            ))}
+                                            <td className="p-4 text-right">
+                                                {isEditing ? (
+                                                    <div className="flex justify-end gap-2">
+                                                        <button onClick={handleSave} className="bg-green-500/10 text-green-500 hover:bg-green-500/20 p-2 rounded-lg transition-colors" title="Save"><Check className="w-4 h-4" /></button>
+                                                        <button onClick={handleCancelEdit} className="bg-white/5 text-muted-foreground hover:bg-white/10 p-2 rounded-lg transition-colors" title="Cancel"><X className="w-4 h-4" /></button>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                                        <button onClick={() => handleEdit(item)} className="bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 p-2 rounded-lg transition-colors" title="Edit"><Pencil className="w-4 h-4" /></button>
+                                                        <button onClick={() => confirmDelete(item[primaryKey])} className="bg-red-500/10 text-red-400 hover:bg-red-500/20 p-2 rounded-lg transition-colors" title="Delete"><Trash2 className="w-4 h-4" /></button>
+                                                    </div>
+                                                )}
+                                            </td>
+                                        </tr>
+                                        {hasExpand && isExpanded && (
+                                            <tr className="bg-black/20">
+                                                <td colSpan={totalCols} className="p-0">
+                                                    <div className="animate-in slide-in-from-top-2 fade-in duration-200">
+                                                        {expandedRowRender(item)}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </React.Fragment>
                                 )
                             })}
                             {data.length === 0 && (
                                 <tr>
-                                    <td colSpan={columns.length + 1} className="p-12 text-center text-muted-foreground flex flex-col items-center gap-2">
+                                    <td colSpan={totalCols} className="p-12 text-center text-muted-foreground flex flex-col items-center gap-2">
                                         <div className="bg-white/5 p-4 rounded-full mb-2">
                                             <Save className="w-8 h-8 opacity-20" />
                                         </div>
